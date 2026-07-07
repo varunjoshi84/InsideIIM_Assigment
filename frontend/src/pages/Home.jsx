@@ -2,13 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import Chat from './Chat';
+import { 
+  Bell, 
+  User, 
+  Trash2, 
+  Plus, 
+  TrendingUp, 
+  FileText, 
+  LogOut, 
+  Calendar,
+  History
+} from 'lucide-react';
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [history, setHistory] = useState([]);
   const [activeReport, setActiveReport] = useState(null);
   const navigate = useNavigate();
-
+  const [user,setUser] = useState("");
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -28,11 +39,40 @@ export default function Home() {
         }
       });
       setHistory(response.data.data || []);
+      if (response.data.username) {
+        setUser(response.data.username);
+      }
     } catch (err) {
       console.error("Error fetching history:", err);
       if (err.response?.status === 401) {
         handleLogout();
       }
+    }
+  };
+
+  const handleDeleteReport = async (reportId) => {
+    if (!window.confirm("Are you sure you want to delete this research report?")) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    try {
+      await axios.delete(`http://127.0.0.1:5000/api/history/${reportId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      // If the deleted report is currently opened, clear it
+      if (activeReport?._id === reportId) {
+        setActiveReport(null);
+      }
+      
+      // Refresh the list
+      fetchHistory(token);
+    } catch (err) {
+      console.error("Error deleting report:", err);
+      alert(err.response?.data?.message || "Failed to delete report.");
     }
   };
 
@@ -44,110 +84,149 @@ export default function Home() {
     navigate("/login");
   };
 
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans">
       {/* Top Navbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+      <header className="bg-white border-b border-[#E5E7EB] sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-extrabold text-lg shadow-md shadow-blue-200">
-              F
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-[#00C853]/10 flex items-center justify-center">
+              <TrendingUp className="w-4.5 h-4.5 text-[#00C853]" strokeWidth={2.5} />
             </div>
-            <div>
-              <span className="font-extrabold text-xl tracking-tight text-slate-800">FinTrack</span>
-              <span className="font-bold text-xs bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded ml-1.5">AI</span>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-lg tracking-tight text-[#111827]">Stockly</span>
+
             </div>
           </div>
 
           <div className="flex items-center gap-4">
-            {isLoggedIn ? (
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-slate-600 hidden sm:inline-block">Research Premium</span>
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 text-sm font-semibold text-red-600 hover:text-white border border-red-200 hover:bg-red-600 rounded-xl transition duration-200 cursor-pointer"
-                >
-                  Logout
-                </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-amber-600 bg-amber-50 px-2.5 py-1 rounded-xl font-medium border border-amber-200 mr-2 hidden sm:inline-block">
-                  Guest Tier (3 Searches)
-                </span>
-                <Link
-                  to="/login"
-                  className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
-                >
-                  Sign In
-                </Link>
-                <Link
-                  to="/register"
-                  className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition duration-200 shadow-sm shadow-blue-100"
-                >
-                  Create Account
-                </Link>
-              </div>
-            )}
+          
+            
+            <div className="flex items-center gap-3">
+              {/* Notification Mock */}
+             
+
+              {isLoggedIn ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-[#F8FAFC] border border-[#E5E7EB] rounded-lg">
+                    <User className="w-3.5 h-3.5 text-[#6B7280]" /> 
+                    <span className="text-xs font-semibold text-[#111827]">{user || "Analyst"}</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-3.5 py-1.5 text-xs font-semibold text-[#6B7280] hover:text-red-600 border border-[#E5E7EB] hover:border-red-200 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <Link
+                    to="/login"
+                    className="px-3.5 py-1.5 text-xs font-semibold text-[#6B7280] hover:text-[#111827] transition"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#111827] hover:bg-black rounded-lg transition duration-200 shadow-sm"
+                  >
+                    Create Account
+                  </Link>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Welcome Banner */}
+      <div className="max-w-7xl w-full mx-auto px-6 pt-6">
+        <h1 className="text-2xl font-bold tracking-tight text-[#111827]">
+          {isLoggedIn ? "Research Dashboard" : "Investment Research"}
+        </h1>
+        <p className="text-xs text-[#6B7280] mt-1 font-medium">
+          {isLoggedIn 
+            ? "Track your logs, view stock models, and run deep financial intelligence."
+            : "Analyze any company with real-time intelligence and structured recommendations."}
+        </p>
+      </div>
 
       {/* Main Content Layout */}
       <div className="flex-1 max-w-7xl w-full mx-auto flex flex-col md:flex-row gap-6 p-6">
         
         {/* Left Sidebar - History List (only visible for logged-in users) */}
         {isLoggedIn && (
-          <aside className="w-full md:w-80 bg-white rounded-2xl border border-slate-200 p-5 flex flex-col shadow-sm md:sticky md:top-24 h-fit">
-            <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
-              <h2 className="font-bold text-slate-800 text-base">Your Research Logs</h2>
-              <span className="text-xs bg-slate-100 text-slate-500 font-bold px-2 py-0.5 rounded-full">
+          <aside className="w-full md:w-80 bg-white rounded-2xl border border-[#E5E7EB] p-5 flex flex-col shadow-[0_1px_3px_rgba(0,0,0,0.05)] md:sticky md:top-24 h-fit">
+            <div className="flex justify-between items-center mb-4 pb-3 border-b border-[#E5E7EB]">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-[#6B7280]" />
+                <h2 className="font-bold text-[#111827] text-sm">Research Logs</h2>
+              </div>
+              <span className="text-xs bg-[#F3F4F6] text-[#6B7280] font-bold px-2 py-0.5 rounded-full border border-[#E5E7EB]">
                 {history.length}
               </span>
             </div>
 
-            <div className="flex-1 space-y-2 overflow-y-auto max-h-[300px] md:max-h-[500px] pr-1">
+            <div className="flex-1 space-y-1.5 overflow-y-auto max-h-[300px] md:max-h-[500px] pr-1">
               {history.length > 0 ? (
                 history.map((report) => (
-                  <button
+                  <div
                     key={report._id}
                     onClick={() => setActiveReport(report)}
-                    className={`w-full text-left p-3 rounded-xl border transition duration-200 flex items-start gap-3 cursor-pointer ${
+                    className={`w-full text-left p-3 rounded-xl border transition duration-150 flex items-center justify-between gap-3 cursor-pointer group ${
                       activeReport?._id === report._id
-                        ? 'border-blue-500 bg-blue-50/50'
-                        : 'border-slate-100 hover:border-slate-200 hover:bg-slate-50'
+                        ? 'border-[#E5E7EB] bg-[#F3F4F6] text-[#111827]'
+                        : 'border-transparent hover:bg-[#F9FAFB] text-[#6B7280]'
                     }`}
                   >
-                    <span className={`h-2.5 w-2.5 rounded-full mt-1.5 shrink-0 ${
-                      report.decision === 'INVEST' ? 'bg-emerald-500' : 'bg-rose-500'
-                    }`}></span>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-sm text-slate-800 truncate">
-                        {report.companyName}
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                        {report.ticker} • {report.decision} • Score {report.confidenceScore}/10
-                      </div>
-                      <div className="text-[9px] text-slate-400 mt-1">
-                        {new Date(report.createdAt).toLocaleDateString()}
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      <FileText className="w-4 h-4 mt-0.5 shrink-0 text-[#6B7280]" />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-xs text-[#111827] truncate">
+                          {report.companyName}
+                        </div>
+                        <div className="text-[10px] text-[#6B7280] mt-0.5 font-medium">
+                          {report.ticker} • {report.ticker === 'UNKNOWN' ? 'UNLISTED' : report.decision} • {report.confidenceScore}/10
+                        </div>
                       </div>
                     </div>
-                  </button>
+                    {/* Delete button, visible on hover */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent opening the report
+                        handleDeleteReport(report._id);
+                      }}
+                      className="text-[#6B7280] hover:text-[#EF4444] p-1 rounded hover:bg-[#E5E7EB] transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                      title="Delete log"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 ))
               ) : (
                 <div className="text-center py-8">
-                  <p className="text-slate-400 text-xs">No research history yet.</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Submit your first search query!</p>
+                  <p className="text-[#6B7280] text-xs">No research history yet.</p>
+                  <p className="text-[10px] text-[#6B7280] mt-1">Submit your first search query!</p>
                 </div>
               )}
             </div>
             
-            <div className="mt-4 pt-4 border-t border-slate-100">
+            <div className="mt-4 pt-4 border-t border-[#E5E7EB]">
               <button
                 onClick={() => setActiveReport(null)}
-                className="w-full py-2.5 text-center text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-xl transition duration-200 cursor-pointer"
+                className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-[#111827] hover:bg-[#F3F4F6] border border-[#E5E7EB] rounded-xl transition duration-150 cursor-pointer"
               >
-                Run New Analysis
+                <Plus className="w-3.5 h-3.5" />
+                <span>New Analysis</span>
               </button>
             </div>
           </aside>
@@ -157,6 +236,7 @@ export default function Home() {
         <main className="flex-1 min-w-0">
           <Chat 
             activeReport={activeReport} 
+            onSearchInitiated={() => setActiveReport(null)}
             onNewResearchCompleted={() => fetchHistory()} 
           />
         </main>

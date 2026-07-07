@@ -1,5 +1,6 @@
 const { runResearchAgent } = require('../services/researchAgent');
 const Research = require('../models/Research.model');
+const User = require('../models/User.model.js');
 
 const executeResearch = async (req, res) => {
     const { message, guestId } = req.body;
@@ -10,8 +11,16 @@ const executeResearch = async (req, res) => {
     }
 
     try {
-        console.log(`Starting AI Research for company: "${message}"`);
         const agentResult = await runResearchAgent(message);
+
+        // Check if the company could not be found
+        const isTickerUnknown = !agentResult.ticker || agentResult.ticker === "UNKNOWN";
+        const hasNoNews = !agentResult.news || agentResult.news.length === 0;
+        if (isTickerUnknown && hasNoNews) {
+            return res.status(400).json({
+                message: `no stock name ${message}, please check syntax`
+            });
+        }
 
         // Save report to database
         const researchReport = await Research.create({
@@ -21,6 +30,7 @@ const executeResearch = async (req, res) => {
             ticker: agentResult.ticker || "UNKNOWN",
             financials: agentResult.financials || {},
             news: agentResult.news || [],
+            priceHistory: agentResult.priceHistory || {},
             analysis: agentResult.analysis || "No analysis generated.",
             decision: agentResult.decision || "PASS",
             reasoning: agentResult.reasoning || "Failed to parse reasoning from agent.",
@@ -56,10 +66,12 @@ const getHistory = async (req, res) => {
             });
         }
 
+        const userObj = await User.findById(req.user.id);
         const reports = await Research.find({ userId: req.user.id }).sort({ createdAt: -1 });
         return res.status(200).json({
             message: "History retrieved successfully.",
-            data: reports
+            data: reports,
+            username: userObj ? userObj.name : "Analyst"
         });
     } catch (err) {
         console.error("Error fetching research history:", err);
@@ -69,7 +81,39 @@ const getHistory = async (req, res) => {
     }
 };
 
+const deleteHistoryItem = async (req, res) => {
+    try {
+        if (!req.user || !req.user.id) {
+            return res.status(401).json({
+                message: "Unauthorized. Please login to continue."
+            });
+        }
+
+        const { id } = req.params;
+        const deletedReport = await Research.findOneAndDelete({
+            _id: id,
+            userId: req.user.id
+        });
+
+        if (!deletedReport) {
+            return res.status(404).json({
+                message: "Research report not found or unauthorized to delete."
+            });
+        }
+
+        return res.status(200).json({
+            message: "Research report deleted successfully."
+        });
+    } catch (err) {
+        console.error("Error deleting research report:", err);
+        return res.status(500).json({
+            message: "Failed to delete research report: " + err.message
+        });
+    }
+};
+
 module.exports = {
     executeResearch,
-    getHistory
+    getHistory,
+    deleteHistoryItem
 };

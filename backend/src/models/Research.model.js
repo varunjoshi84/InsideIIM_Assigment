@@ -26,6 +26,10 @@ const ResearchSchema = new mongoose.Schema({
         type: [mongoose.Schema.Types.Mixed],
         default: []
     },
+    priceHistory: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
+    },
     analysis: {
         type: String,
         required: true

@@ -1,12 +1,13 @@
 const { StateGraph, Annotation } = require("@langchain/langgraph");
 const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const { ChatOpenAI } = require("@langchain/openai");
-const { HuggingFaceInference } = require("@langchain/huggingface");
+const { InferenceClient } = require("@huggingface/inference");
 // Define state
 const ResearchState = Annotation.Root({
   companyName: Annotation(),
   ticker: Annotation(),
   financials: Annotation(),
+  priceHistory: Annotation(),
   news: Annotation(),
   analysis: Annotation(),
   decision: Annotation(),
@@ -14,53 +15,130 @@ const ResearchState = Annotation.Root({
   confidenceScore: Annotation(),
   error: Annotation()
 });
-
-// Model helper supporting both Gemini and OpenAI
-function getModel() {
-  if (process.env.GEMINI_API_KEY) {
-    console.log("Using Gemini model for research agent");
-    return new ChatGoogleGenerativeAI({
-      modelName: "gemini-1.5-flash",
-      maxOutputTokens: 2048,
-      apiKey: process.env.GEMINI_API_KEY
-    });
-  } else if (process.env.OPENAI_API_KEY) {
-    console.log("Using OpenAI model for research agent");
-    return new ChatOpenAI({
-      modelName: "gpt-4o-mini",
-      maxTokens: 2048,
-      apiKey: process.env.OPENAI_API_KEY
-    });
-  } else if(process.env.HUGGING_FACE_API_KEY){
-    console.log("Using Hugging Face model for reseach agent");
-    return new HuggingFaceInference({
-      modelName: "meta-llama/Llama-3.1-8B-Instruct",
-      apiKey: process.env.HUGGING_FACE_API_KEY
-    })
-  }   
-   else {
-    throw new Error("No LLM API keys found. Please configure GEMINI_API_KEY or OPENAI_API_KEY in your backend/.env file.");
+//Huggingface integration 
+class HuggingFaceChatModel {
+  constructor(apiKey) {
+    this.client = new InferenceClient(apiKey);
+    this.model = "Qwen/Qwen2.5-72B-Instruct";
   }
+
+  async invoke(prompt) {
+    const response = await this.client.chatCompletion({
+      model: this.model,
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      max_tokens: 2048,
+    });
+
+    return {
+      content: response.choices[0].message.content,
+    };
+  }
+}
+//model helper for gemini openai and hugging face
+class FallbackChatModel {
+  constructor(geminiModel, openaiModel, hfModel) {
+    this.geminiModel = geminiModel;
+    this.openaiModel = openaiModel;
+    this.hfModel = hfModel;
+  }
+
+  async invoke(prompt) {
+    if (this.geminiModel) {
+      try {
+        console.log("Using Gemini");
+        const res = await this.geminiModel.invoke(prompt);
+        return res;
+      } catch (err) {
+        console.warn("Gemini call failed or rate-limited. Error:", err.message);
+        if (!this.openaiModel && !this.hfModel) {
+          throw err;
+        }
+      }
+    }
+    
+    if (this.openaiModel) {
+      try {
+        console.log("Using OpenAI Fallback");
+        const res = await this.openaiModel.invoke(prompt);
+        return res;
+      } catch (err) {
+        console.warn("OpenAI call failed. Error:", err.message);
+        if (!this.hfModel) {
+          throw err;
+        }
+      }
+    }
+
+    if (this.hfModel) {
+      console.log("Using Hugging Face Fallback (Qwen 2.5)");
+      const res = await this.hfModel.invoke(prompt);
+      return res;
+    }
+
+    throw new Error("No model was able to resolve this request.");
+  }
+}
+
+//model helper for gemini openai and hugging face
+function getModel() {
+  let geminiModel = null;
+  let openaiModel = null;
+  let hfModel = null;
+
+  if (process.env.GEMINI_API_KEY) {
+    geminiModel = new ChatGoogleGenerativeAI({
+      model: "gemini-3.5-flash",
+      maxOutputTokens: 2048,
+      apiKey: process.env.GEMINI_API_KEY,
+    });
+  }
+
+  if (process.env.OPENAI_API_KEY) {
+    openaiModel = new ChatOpenAI({
+      model: "gpt-4o-mini",
+      maxTokens: 2048,
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+
+  if (process.env.HUGGING_FACE_API_KEY) {
+    hfModel = new HuggingFaceChatModel(process.env.HUGGING_FACE_API_KEY);
+  }
+
+  if (!geminiModel && !openaiModel && !hfModel) {
+    throw new Error("No LLM API key found.");
+  }
+
+  return new FallbackChatModel(geminiModel, openaiModel, hfModel);
 }
 
 // Node 1: Resolve Ticker
 async function findTickerNode(state) {
   const { companyName } = state;
+  
+  const cleanName = companyName.trim().toUpperCase();
+  if (cleanName === "LTM" || cleanName === "LTM.NSE") {
+    console.log(`Manual override: Resolved LTM query to LT.NS`);
+    return { ticker: "LT.NS" };
+  }
+
   try {
     const model = getModel();
-   const prompt = `You are an experienced equity research analyst.
-   Task:Given the company name "${companyName}", determine the primary publicly traded stock ticker symbol.
-  Rules:
-  - Return ONLY the ticker symbol in uppercase (e.g., AAPL, MSFT, TSLA, RELIANCE, TCS).
-  - If multiple listed companies share the same name, return the ticker of the most widely recognized publicly traded company.
-  - If the company is privately held, delisted, or no reliable ticker can be identified, return "UNKNOWN".
-  - Do not include exchange names, explanations, punctuation, markdown, or any additional text.
-  Output:
-  <TICKER>
-  `;
+    const prompt = `You are an experienced equity research analyst.
+Task: Given the company name or search query "${companyName}", resolve it to its primary publicly traded stock ticker symbol.
+Rules:
+- Return ONLY the ticker symbol in uppercase.
+- If the company is primarily listed in India (e.g. Reliance, Tata, TARC, Adani, Zomato, etc.), you MUST append the ".NS" suffix to the ticker symbol (e.g. RELIANCE.NS, TCS.NS, TARC.NS, ZOMATO.NS).
+- If it is a US stock (e.g. Apple, Google, Microsoft), return the standard US ticker without any suffix (e.g. AAPL, GOOG, MSFT).
+- Return ONLY the ticker symbol, with no other text, markdown, or punctuation. If you cannot identify the ticker, reply with "UNKNOWN".`;
     
     const response = await model.invoke(prompt);
-    const ticker = response.content.toString().trim().toUpperCase().replace(/[^A-Z]/g, '');
+    const ticker = response.content.toString().trim().toUpperCase().replace(/[^A-Z.]/g, '');
     console.log(`Resolved ticker for "${companyName}": ${ticker}`);
     return { ticker };
   } catch (err) {
@@ -113,6 +191,7 @@ async function fetchFinancialsNode(state) {
       fiftyTwoWeekLow,
       volume: meta.regularMarketVolume,
       currency: meta.currency,
+      exchange: meta.exchangeName || "NSE",
       oneMonthReturn: Number(oneMonthReturn.toFixed(2)),
       priceHistory: validClosePrices.slice(-10)
     };
@@ -122,6 +201,74 @@ async function fetchFinancialsNode(state) {
   } catch (err) {
     console.error("Error in fetchFinancialsNode:", err);
     return { financials: { error: `Error fetching financials: ${err.message}` } };
+  }
+}
+
+async function fetchHistoryForPeriod(ticker, range, interval) {
+  try {
+    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const result = data?.chart?.result?.[0];
+    if (!result) return [];
+    const timestamps = result.timestamp || [];
+    const quotes = result.indicators?.quote?.[0]?.close || [];
+    
+    return timestamps.map((ts, idx) => {
+      const date = new Date(ts * 1000);
+      let dateStr;
+      if (range === '1d') {
+        dateStr = date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+      } else if (range === '5d' || range === '1mo') {
+        dateStr = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+      } else {
+        dateStr = date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
+      }
+      return {
+        date: dateStr,
+        price: quotes[idx] != null ? Number(quotes[idx].toFixed(2)) : null
+      };
+    }).filter(pt => pt.price !== null);
+  } catch (err) {
+    console.error(`Error fetching period ${range} for ${ticker}:`, err);
+    return [];
+  }
+}
+
+async function fetchPriceHistoryNode(state) {
+  const { ticker } = state;
+  if (!ticker || ticker === "UNKNOWN") {
+    return { priceHistory: {} };
+  }
+
+  try {
+    console.log(`Fetching parallel price history for: ${ticker}`);
+    const [h1d, h1w, h1m, h3m, h6m, h1y, h5y] = await Promise.all([
+      fetchHistoryForPeriod(ticker, '1d', '5m'),
+      fetchHistoryForPeriod(ticker, '5d', '15m'),
+      fetchHistoryForPeriod(ticker, '1mo', '1d'),
+      fetchHistoryForPeriod(ticker, '3mo', '1d'),
+      fetchHistoryForPeriod(ticker, '6mo', '1d'),
+      fetchHistoryForPeriod(ticker, '1y', '1d'),
+      fetchHistoryForPeriod(ticker, '5y', '1wk'),
+    ]);
+
+    const priceHistory = {
+      '1D': h1d,
+      '1W': h1w,
+      '1M': h1m,
+      '3M': h3m,
+      '6M': h6m,
+      '1Y': h1y,
+      '3Y': h5y.slice(-156), // last 3 years of weekly data
+      '5Y': h5y,
+      'All': h5y // fallback to 5y
+    };
+
+    return { priceHistory };
+  } catch (err) {
+    console.error("Error in fetchPriceHistoryNode:", err);
+    return { priceHistory: {} };
   }
 }
 
@@ -168,6 +315,17 @@ async function fetchNewsNode(state) {
 // Node 4: Compile analysis memo
 async function analyzeNode(state) {
   const { companyName, ticker, financials, news } = state;
+  
+  const isTickerUnknown = !ticker || ticker === "UNKNOWN";
+  const hasNoNews = !news || news.length === 0;
+
+  if (isTickerUnknown && hasNoNews) {
+    console.log(`Aborting analysis: no ticker or news found for "${companyName}"`);
+    return {
+      analysis: `### Aborted: Entity Not Found\n\nWe could not find any publicly traded stock ticker symbol, historical price chart, or recent news reports for the company name **"${companyName}"**.\n\nPlease verify that the company name is spelled correctly and that the business is a publicly listed or widely recognized entity.`
+    };
+  }
+
   try {
     const model = getModel();
     const isFinValid = financials && !financials.error;
@@ -205,6 +363,15 @@ Please structure your report using standard Markdown, including headings, lists,
 // Node 5: Investment Decision Committee
 async function decideNode(state) {
   const { companyName, ticker, financials, analysis } = state;
+
+  if (analysis && analysis.includes("Aborted: Entity Not Found")) {
+    return {
+      decision: "PASS",
+      reasoning: `We were unable to identify "${companyName}" as a valid publicly traded company or find any public news history.`,
+      confidenceScore: 10
+    };
+  }
+
   try {
     const model = getModel();
     const prompt = `You are the Investment Committee. You must review the financial data and the analysis memo, then make a final, binary decision: **INVEST** or **PASS**.
@@ -258,13 +425,15 @@ Structure:
 const workflow = new StateGraph(ResearchState)
   .addNode("findTicker", findTickerNode)
   .addNode("fetchFinancials", fetchFinancialsNode)
+  .addNode("fetchPriceHistory", fetchPriceHistoryNode)
   .addNode("fetchNews", fetchNewsNode)
   .addNode("analyze", analyzeNode)
   .addNode("decide", decideNode);
 
 workflow.addEdge("__start__", "findTicker");
 workflow.addEdge("findTicker", "fetchFinancials");
-workflow.addEdge("fetchFinancials", "fetchNews");
+workflow.addEdge("fetchFinancials", "fetchPriceHistory");
+workflow.addEdge("fetchPriceHistory", "fetchNews");
 workflow.addEdge("fetchNews", "analyze");
 workflow.addEdge("analyze", "decide");
 workflow.addEdge("decide", "__end__");
