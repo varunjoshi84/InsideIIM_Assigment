@@ -2,6 +2,9 @@
 
 Stockly is an intelligent, institutional-grade equity research dashboard that compiles financial snapshots, crawls real-time press catalogs, analyzes market sentiments, and synthesizes binary investment recommendations (**INVEST** or **PASS**) powered by an autonomous multi-node LangGraph agent workflow.
 
+* **Live Frontend App**: [https://vrstockly.vercel.app/](https://vrstockly.vercel.app/)
+* **Live Backend Server**: [https://insideiim-assigment-k26l.onrender.com](https://insideiim-assigment-k26l.onrender.com)
+
 ---
 
 ## 🚀 Overview — What it Does
