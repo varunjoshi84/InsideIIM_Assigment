@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios'
 import { TrendingUp } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 function Register() {
     const [name, setName] = useState("");
@@ -16,7 +17,7 @@ function Register() {
         setLoading(true);
         setMessage("");
         try {
-            const response = await axios.post('http://127.0.0.1:5000/api/register/', {
+            const response = await axios.post(`${API_BASE_URL}/register/`, {
                 name, email, password
             });
             setMessage(response.data.message);

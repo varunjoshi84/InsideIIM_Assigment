@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import Chat from './Chat';
+import { API_BASE_URL } from '../config';
 import { 
   Bell, 
   User, 
@@ -33,7 +34,7 @@ export default function Home() {
     if (!token) return;
 
     try {
-      const response = await axios.get("http://127.0.0.1:5000/api/history", {
+      const response = await axios.get(`${API_BASE_URL}/history`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -57,7 +58,7 @@ export default function Home() {
     if (!token) return;
 
     try {
-      await axios.delete(`http://127.0.0.1:5000/api/history/${reportId}`, {
+      await axios.delete(`${API_BASE_URL}/history/${reportId}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }

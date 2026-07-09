@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { v4 as uuid } from 'uuid';
 import axios from 'axios';
 import StockChart from './StockChart';
+import { API_BASE_URL } from '../config';
 import { 
   Search, 
   Loader2, 
@@ -72,7 +73,7 @@ export default function Chat({ activeReport, onSearchInitiated, onNewResearchCom
 
     try {
       const response = await axios.post(
-        "http://127.0.0.1:5000/api/chat",
+        `${API_BASE_URL}/chat`,
         {
           message: companyInput,
           guestId,
