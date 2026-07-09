@@ -97,25 +97,57 @@ export default function Chat({ activeReport, onSearchInitiated, onNewResearchCom
     }
   };
 
+  const parseInlineMarkdown = (text) => {
+    if (!text) return '';
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        const boldText = part.slice(2, -2);
+        return <strong key={idx} className="font-bold text-[#111827]">{boldText}</strong>;
+      }
+      const subParts = part.split(/(\*.*?\*)/g);
+      return subParts.map((subPart, subIdx) => {
+        if (subPart.startsWith('*') && subPart.endsWith('*')) {
+          return <em key={subIdx} className="italic text-[#6B7280]">{subPart.slice(1, -1)}</em>;
+        }
+        return subPart;
+      });
+    });
+  };
+
   const formatAnalysis = (text) => {
     if (!text) return null;
     return text.split('\n').map((line, i) => {
-      if (line.startsWith('###') || line.startsWith('##') || line.startsWith('#')) {
-        const cleanLine = line.replace(/^#+\s*/, '');
-        return <h4 key={i} className="text-xs uppercase tracking-wider font-bold text-[#111827] mt-6 mb-2 border-b border-[#E5E7EB] pb-1">{cleanLine}</h4>;
+      const trimmed = line.trim();
+      if (trimmed.startsWith('###') || trimmed.startsWith('##') || trimmed.startsWith('#')) {
+        const cleanLine = trimmed.replace(/^#+\s*/, '');
+        return <h4 key={i} className="text-xs uppercase tracking-wider font-bold text-[#111827] mt-6 mb-2 border-b border-[#E5E7EB] pb-1">{parseInlineMarkdown(cleanLine)}</h4>;
       }
-      if (line.trim().startsWith('-') || line.trim().startsWith('*')) {
-        const cleanLine = line.replace(/^[-*]\s*/, '');
-        return <li key={i} className="ml-5 list-disc text-[#6B7280] text-sm my-1 font-medium">{cleanLine}</li>;
+      
+      const isBullet = /^[-*]\s+/.test(trimmed);
+      if (isBullet) {
+        const cleanLine = trimmed.replace(/^[-*]\s+/, '');
+        return (
+          <li key={i} className="ml-5 list-disc text-[#6B7280] text-sm my-1 font-medium">
+            {parseInlineMarkdown(cleanLine)}
+          </li>
+        );
       }
-      return line.trim() === '' ? <br key={i} /> : <p key={i} className="text-[#6B7280] text-sm leading-relaxed my-2 font-medium">{line}</p>;
+      
+      return trimmed === '' ? (
+        <br key={i} />
+      ) : (
+        <p key={i} className="text-[#6B7280] text-sm leading-relaxed my-2 font-medium">
+          {parseInlineMarkdown(line)}
+        </p>
+      );
     });
   };
 
   const priceHistory = report?.priceHistory || null;
 
   return (
-    <div className="w-full max-w-5xl mx-auto p-4 space-y-6">
+    <div className="w-full max-w-5xl mx-auto space-y-6">
       {/* Search Input Container */}
       <div className="bg-white rounded-2xl border border-[#E5E7EB] p-6 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
         <h2 className="text-lg font-bold text-[#111827] mb-1">Investment Research Center</h2>

@@ -35,9 +35,9 @@ function Login() {
             <div className="w-full max-w-[380px] bg-white rounded-2xl border border-[#E5E7EB] p-8 shadow-[0_1px_3px_rgba(0,0,0,0.05)]">
                 
                 {/* Logo / mark */}
-                <div className="flex items-center gap-2.5 mb-6 justify-center">
-                    <div className="w-8 h-8 rounded-lg bg-[#00C853]/10 flex items-center justify-center">
-                        <TrendingUp className="w-4.5 h-4.5 text-[#00C853]" strokeWidth={2.5} />
+                <div className="flex flex-col items-center gap-2 mb-6">
+                    <div className="w-10 h-10 rounded-xl bg-[#00C853]/10 flex items-center justify-center">
+                        <TrendingUp className="w-5.5 h-5.5 text-[#00C853]" strokeWidth={2.5} />
                     </div>
                     <span className="text-[#111827] text-xl font-bold tracking-tight">Stockly</span>
                 </div>

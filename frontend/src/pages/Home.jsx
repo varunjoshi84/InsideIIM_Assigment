@@ -81,7 +81,7 @@ export default function Home() {
     setIsLoggedIn(false);
     setHistory([]);
     setActiveReport(null);
-    navigate("/login");
+    navigate("/");
   };
 
   const currentDate = new Date().toLocaleDateString('en-US', {
