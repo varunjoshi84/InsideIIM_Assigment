@@ -96,9 +96,9 @@ Stockly implements an autonomous **LangGraph StateGraph** pipeline on the backen
 * **Decision Badge**: `UNLISTED` (Neutral Gray Status)
 * **Memo Summary**: Compiles business operations, news of applying for a SEBI merchant banking license, and founders' energy transition investments.
 
-### Case 3: Invalid Stock (e.g. `"aandu"`)
+### Case 3: Invalid Stock (e.g. `"InsideIIM"`)
 * **Output**: Throws a clear user-friendly error message in the UI:
-  > `"no stock name aandu, please check syntax"`
+  > `"no stock name InsideIIM, please check syntax"`
 
 ---
 
