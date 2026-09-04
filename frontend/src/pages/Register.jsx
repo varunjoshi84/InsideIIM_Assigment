@@ -17,7 +17,7 @@ function Register() {
         setLoading(true);
         setMessage("");
         try {
-            const response = await axios.post(`${API_BASE_URL}/register/`, {
+            const response = await axios.post(`${API_BASE_URL}/register`, {
                 name, email, password
             });
             setMessage(response.data.message);

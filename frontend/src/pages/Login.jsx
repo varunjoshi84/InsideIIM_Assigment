@@ -17,7 +17,7 @@ function Login() {
         setLoading(true);
         setMessage("");
         try {
-            const response = await axios.post(`${API_BASE_URL}/login/`, {
+            const response = await axios.post(`${API_BASE_URL}/login`, {
                 email, password
             })
             setMessage(response.data.message)
