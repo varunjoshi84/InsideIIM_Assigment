@@ -206,66 +206,120 @@ async function fetchFinancialsNode(state) {
 
 async function fetchHistoryForPeriod(ticker, range, interval) {
   try {
-    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=${range}&interval=${interval}`);
-    if (!res.ok) return [];
+    const url =
+      `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}` +
+      `?range=${range}&interval=${interval}`;
+
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      console.error(
+        `Yahoo Finance failed: ${ticker} ${range}/${interval} -> ${res.status}`
+      );
+      return [];
+    }
+
     const data = await res.json();
     const result = data?.chart?.result?.[0];
-    if (!result) return [];
+
+    if (!result) {
+      console.error(`No Yahoo data for ${ticker} ${range}/${interval}`);
+      return [];
+    }
+
     const timestamps = result.timestamp || [];
     const quotes = result.indicators?.quote?.[0]?.close || [];
-    
-    return timestamps.map((ts, idx) => {
-      const date = new Date(ts * 1000);
-      let dateStr;
-      if (range === '1d') {
-        dateStr = date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-      } else if (range === '5d' || range === '1mo') {
-        dateStr = date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-      } else {
-        dateStr = date.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
-      }
-      return {
-        date: dateStr,
-        price: quotes[idx] != null ? Number(quotes[idx].toFixed(2)) : null
-      };
-    }).filter(pt => pt.price !== null);
+
+    return timestamps
+      .map((ts, idx) => {
+        const date = new Date(ts * 1000);
+
+        let dateStr;
+
+        if (range === "1d") {
+          dateStr = date.toLocaleTimeString("en-IN", {
+            hour: "numeric",
+            minute: "2-digit",
+          });
+        } else if (range === "5d") {
+          dateStr = date.toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+          });
+        } else {
+          dateStr = date.toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+          });
+        }
+
+        return {
+          date: dateStr,
+          price:
+            quotes[idx] != null
+              ? Number(quotes[idx].toFixed(2))
+              : null,
+        };
+      })
+      .filter((pt) => pt.price !== null);
+
   } catch (err) {
-    console.error(`Error fetching period ${range} for ${ticker}:`, err);
+    console.error(
+      `Error fetching period ${range} for ${ticker}:`,
+      err
+    );
     return [];
   }
 }
 
 async function fetchPriceHistoryNode(state) {
   const { ticker } = state;
+
   if (!ticker || ticker === "UNKNOWN") {
     return { priceHistory: {} };
   }
 
   try {
-    console.log(`Fetching parallel price history for: ${ticker}`);
-    const [h1d, h1w, h1m, h3m, h6m, h1y, h5y] = await Promise.all([
-      fetchHistoryForPeriod(ticker, '1d', '5m'),
-      fetchHistoryForPeriod(ticker, '5d', '15m'),
-      fetchHistoryForPeriod(ticker, '1mo', '1d'),
-      fetchHistoryForPeriod(ticker, '3mo', '1d'),
-      fetchHistoryForPeriod(ticker, '6mo', '1d'),
-      fetchHistoryForPeriod(ticker, '1y', '1d'),
-      fetchHistoryForPeriod(ticker, '5y', '1wk'),
-    ]);
+    console.log(`Fetching price history for: ${ticker}`);
+
+    // Fetch sequentially instead of Promise.all
+    const h1d = await fetchHistoryForPeriod(ticker, "1d", "5m");
+    const h1w = await fetchHistoryForPeriod(ticker, "5d", "15m");
+    const h1m = await fetchHistoryForPeriod(ticker, "1mo", "1d");
+    const h3m = await fetchHistoryForPeriod(ticker, "3mo", "1d");
+    const h6m = await fetchHistoryForPeriod(ticker, "6mo", "1d");
+    const h1y = await fetchHistoryForPeriod(ticker, "1y", "1d");
+    const h5y = await fetchHistoryForPeriod(ticker, "5y", "1wk");
 
     const priceHistory = {
-      '1D': h1d,
-      '1W': h1w,
-      '1M': h1m,
-      '3M': h3m,
-      '6M': h6m,
-      '1Y': h1y,
-      '3Y': h5y.slice(-156), // last 3 years of weekly data
-      '5Y': h5y,
-      'All': h5y // fallback to 5y
+      "1D": h1d,
+      "1W": h1w,
+      "1M": h1m,
+      "3M": h3m,
+      "6M": h6m,
+      "1Y": h1y,
+      "3Y": h5y.slice(-156),
+      "5Y": h5y,
+      "All": h5y,
     };
 
+    console.log(
+      `Price history fetched for ${ticker}:`,
+      Object.fromEntries(
+        Object.entries(priceHistory).map(([key, value]) => [
+          key,
+          value.length,
+        ])
+      )
+    );
+
     return { priceHistory };
+
   } catch (err) {
     console.error("Error in fetchPriceHistoryNode:", err);
     return { priceHistory: {} };
